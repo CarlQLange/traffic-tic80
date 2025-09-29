@@ -1,0 +1,12 @@
+# Compiled outputs
+*.js
+*.tic
+
+# TIC-80 local data
+.local/
+
+# Web exports
+web/
+
+# macOS
+.DS_Store
