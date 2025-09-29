@@ -19,7 +19,7 @@ help:
 
 # Compile LiveScript to JavaScript
 compile:
-	@lsc -c -o . $(MAIN_LS)
+	@lsc --compile --bare --no-header --output . $(MAIN_LS)
 
 # Build the .tic cartridge
 build: compile
@@ -34,9 +34,9 @@ dev:
 	@echo "Starting auto-reload development mode..."
 	@echo "Watching $(MAIN_LS) for changes..."
 	@if command -v fswatch > /dev/null; then \
-		fswatch -o $(MAIN_LS) | xargs -n1 -I{} sh -c 'lsc -c -o . $(MAIN_LS) && $(TIC80) $(JS_FILE)'; \
+		fswatch -o $(MAIN_LS) | xargs -n1 -I{} sh -c 'lsc --compile --bare --no-header --output . $(MAIN_LS) && $(TIC80) $(JS_FILE)'; \
 	elif command -v entr > /dev/null; then \
-		echo $(MAIN_LS) | entr sh -c 'lsc -c -o . $(MAIN_LS) && $(TIC80) $(JS_FILE)'; \
+		echo $(MAIN_LS) | entr sh -c 'lsc --compile --bare --no-header --output . $(MAIN_LS) && $(TIC80) $(JS_FILE)'; \
 	else \
 		echo "Error: Neither fswatch nor entr found. Install one:"; \
 		echo "  brew install fswatch  # Preferred on macOS"; \
