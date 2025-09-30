@@ -1,20 +1,7 @@
-# title:   Traffic
-# author:  Carl Lange
-# desc:    A traffic management game
-# site:    redfloatplane.lol
-# license: MIT
-# version: 0.1
-# script:  js
-
 # Game state
 game =
   state: \menu
   time: 0
-
-# Initialize
-init = ->
-  game.state = \menu
-  game.time = 0
 
 # Menu state
 menu-tick = ->
@@ -43,6 +30,7 @@ play-tick = ->
 
 # Main game loop
 export TIC = ->
-  switch game.state
-  | \menu => menu-tick!
-  | \play => play-tick!
+  if game.state == \menu
+    menu-tick!
+  else if game.state == \play
+    play-tick!
