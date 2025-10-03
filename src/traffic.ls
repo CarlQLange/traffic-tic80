@@ -932,42 +932,20 @@ draw-grid = ->
     border-color = if is-hovered and ingame.drag.active then 12 else 13
     rectb x, y, TILE_SIZE, TILE_SIZE, border-color
 
-    # Draw bonuses (under cards) with pulse animation + icons
+    # Draw bonuses (under cards) - static, no pulse
     bonus = get-bonus-at gx, gy
     if bonus
       bonus-color = bonus.type.color
-      # Pulse effect: oscillate size using sine wave
-      pulse = Math.sin(game.timer * 0.1) * 0.5 + 0.5  # 0 to 1
-      bonus-size = (TILE_SIZE - 6) + pulse * 2  # Pulsate 2 pixels
-      offset = (TILE_SIZE - bonus-size) / 2
-      rect x + offset, y + offset, bonus-size, bonus-size, bonus-color
+      # Static square, centered on tile (slightly larger)
+      bonus-size = 9
+      tile-center-x = x + 6  # TILE_SIZE / 2 = 12 / 2 = 6
+      tile-center-y = y + 6
+      bonus-x = Math.floor(tile-center-x - bonus-size / 2)
+      bonus-y = Math.floor(tile-center-y - bonus-size / 2)
+      rect bonus-x, bonus-y, bonus-size, bonus-size, bonus-color
 
       # Draw icon in center
-      cx = x + TILE_SIZE / 2
-      cy = y + TILE_SIZE / 2
-      icon-color = 0  # Black for contrast
-
-      switch bonus.type.id
-      | \turn-1, \turn-2, \turn-3 =>
-        # Clock icon (circle + hand)
-        circ cx, cy, 2, icon-color
-        line cx, cy, cx, cy - 2, icon-color
-
-      | \draw-1, \draw-2 =>
-        # Card stack icon (two overlapping rectangles)
-        rectb cx - 2, cy - 2, 3, 4, icon-color
-        rectb cx - 1, cy - 1, 3, 4, icon-color
-
-      | \premium-card =>
-        # Star icon (X shape)
-        line cx - 2, cy - 2, cx + 2, cy + 2, icon-color
-        line cx - 2, cy + 2, cx + 2, cy - 2, icon-color
-
-      | \wild-card =>
-        # Question mark
-        pix cx, cy - 2, icon-color
-        pix cx, cy - 1, icon-color
-        pix cx, cy + 1, icon-color
+      draw-bonus-icon bonus.type.id, tile-center-x, tile-center-y
 
     # Draw card if present (skip if dragging over this cell)
     should-draw = true
@@ -977,8 +955,35 @@ draw-grid = ->
     if should-draw
       cell = get-cell gx, gy
       if cell
-        rect x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, 1
-        draw-card-visual cell.type, x, y, TILE_SIZE, cell.rotation
+        # Check if this tile is on a goal position
+        is-on-goal = false
+        goal-tint = 1  # Default dark background
+
+        # Check current goal
+        if ingame.current-goal
+          if (gx == ingame.current-goal.start.x and gy == ingame.current-goal.start.y) or
+             (gx == ingame.current-goal.end.x and gy == ingame.current-goal.end.y)
+            is-on-goal = true
+            goal-tint = 3  # Dark green tint for current goal
+
+        # Check completed goals
+        if not is-on-goal
+          for goal in ingame.completed-goals
+            if (gx == goal.start.x and gy == goal.start.y) or
+               (gx == goal.end.x and gy == goal.end.y)
+              is-on-goal = true
+              # Check if broken
+              is-broken = false
+              for broken in ingame.broken-goals
+                if broken.start.x == goal.start.x and broken.start.y == goal.start.y and
+                   broken.end.x == goal.end.x and broken.end.y == goal.end.y
+                  is-broken = true
+                  break
+              goal-tint = if is-broken then 2 else 3  # Dark red if broken, dark green if ok
+              break
+
+        rect x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, goal-tint
+        draw-road-tile cell.type, x, y, TILE_SIZE, cell.rotation
 
   # Show drag preview on hovered cell
   if hover-cell and ingame.drag.active
@@ -992,41 +997,34 @@ draw-grid = ->
     # Preview card with transparency (use bright color to indicate preview)
     preview-color = if can-afford then 12 else 8  # Blue or red
     rect x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, preview-color
-    draw-card-visual ingame.drag.card-type, x, y, TILE_SIZE, ingame.drag.rotation
+    draw-road-tile ingame.drag.card-type, x, y, TILE_SIZE, ingame.drag.rotation
 
     # Show cost
     cost-color = if can-afford then 10 else 8  # Yellow or red
     print "#{turn-cost}", x + 4, y + 4, cost-color
 
   # Draw ALL goal markers ON TOP of everything with pulse animation
-  # Pulse effect for animation
-  pulse = Math.sin(game.timer * 0.15) * 0.5 + 0.5  # 0 to 1, slightly slower than bonuses
-  marker-size = 6 + pulse * 2
-  dot-size = 3 + pulse * 1
+  # Pulse effect for animation (slower than bonuses)
+  pulse = Math.sin(game.timer * 0.05) * 0.5 + 0.5  # 0 to 1, much slower pulse
+  base-marker-radius = 3  # Base radius for circles
+  pulse-amount = Math.floor(pulse * 2) - 1  # Oscillate between -1 and +1 pixels
+  marker-radius = base-marker-radius + pulse-amount
+  dot-radius = 1 + Math.floor(pulse * 1)  # Dot also pulses slightly
   offset-x = 2
   offset-y = 2
 
-  # Helper function to draw a corner marker
-  draw-goal-marker = (gx, gy, is-start, marker-color, marker-bg) ->
-    x = GRID_X + gx * TILE_SIZE
-    y = GRID_Y + gy * TILE_SIZE
-    border-color = 15  # White border for maximum contrast
-
-    # Determine corner position
-    corner-offset-x = if is-start then offset-x else (TILE_SIZE - marker-size - offset-x)
-
-    # White border (outer)
-    rect x + corner-offset-x - 1, y + offset-y - 1, marker-size + 2, marker-size + 2, border-color
-    # Background
-    rect x + corner-offset-x, y + offset-y, marker-size, marker-size, marker-bg
-    # Bright dot
-    dot-offset = (marker-size - dot-size) / 2
-    rect x + corner-offset-x + dot-offset, y + offset-y + dot-offset, dot-size, dot-size, marker-color
+  # Helper wrapper to draw a corner marker at grid coordinates (only if no tile present)
+  draw-marker-at = (gx, gy, is-start, marker-color, marker-bg) ->
+    # Only draw marker if there's no tile on this position
+    if not get-cell gx, gy
+      x = GRID_X + gx * TILE_SIZE
+      y = GRID_Y + gy * TILE_SIZE
+      draw-goal-marker x, y, marker-radius, dot-radius, offset-x, offset-y, is-start, marker-color, marker-bg
 
   # Draw current goal markers (bright colors for active goal)
   if ingame.current-goal
-    draw-goal-marker ingame.current-goal.start.x, ingame.current-goal.start.y, true, 11, 3  # Bright green
-    draw-goal-marker ingame.current-goal.end.x, ingame.current-goal.end.y, false, 8, 2  # Bright red
+    draw-marker-at ingame.current-goal.start.x, ingame.current-goal.start.y, true, 11, 3  # Bright green
+    draw-marker-at ingame.current-goal.end.x, ingame.current-goal.end.y, false, 8, 2  # Bright red
 
   # Draw completed goal markers
   for goal in ingame.completed-goals
@@ -1041,17 +1039,27 @@ draw-grid = ->
     marker-color = if is-broken then 8 else 11  # Red if broken, bright green if connected
     marker-bg = if is-broken then 2 else 3  # Dark red or dark green background
 
-    draw-goal-marker goal.start.x, goal.start.y, true, marker-color, marker-bg
-    draw-goal-marker goal.end.x, goal.end.y, false, marker-color, marker-bg
+    draw-marker-at goal.start.x, goal.start.y, true, marker-color, marker-bg
+    draw-marker-at goal.end.x, goal.end.y, false, marker-color, marker-bg
 
 draw-turn-panel = ->
-  # Right side with breakdown
-  x = 168
+  # Right side with large turn display (with 4px margin from grid)
+  x = 168 + 4  # Add 4px margin from grid edge
   y = 8
 
-  # Total turns (big)
-  print "TURNS: #{ingame.turns}", x, y, 12
-  y += 10
+  # Label (small)
+  print "TURNS", x, y, 13
+  y += 8
+
+  # Turns number (REALLY BIG - scale 3)
+  turn-color = 12  # Blue
+  if ingame.turns <= 3
+    turn-color = 8  # Red warning
+  else if ingame.turns <= 6
+    turn-color = 9  # Orange warning
+
+  print "#{ingame.turns}", x, y, turn-color, false, 3
+  y += 24  # Space for the big number
 
   # Breakdown (smaller, if not first goal)
   if ingame.completed-goals.length > 0 or ingame.current-goal
@@ -1082,31 +1090,31 @@ draw-deck-info = ->
 
   if counts[\straight]
     rectb x-icon, y, card-size, card-size, 13
-    draw-card-visual \straight, x-icon, y, card-size, 0
+    draw-road-tile \straight, x-icon, y, card-size, 0
     print "x#{counts[\straight]}", x-count, y + 3, 15
     y += card-size + 2
 
   if counts[\left-turn]
     rectb x-icon, y, card-size, card-size, 13
-    draw-card-visual \left-turn, x-icon, y, card-size, 0
+    draw-road-tile \left-turn, x-icon, y, card-size, 0
     print "x#{counts[\left-turn]}", x-count, y + 3, 15
     y += card-size + 2
 
   if counts[\right-turn]
     rectb x-icon, y, card-size, card-size, 13
-    draw-card-visual \right-turn, x-icon, y, card-size, 0
+    draw-road-tile \right-turn, x-icon, y, card-size, 0
     print "x#{counts[\right-turn]}", x-count, y + 3, 15
     y += card-size + 2
 
   if counts[\t-junction]
     rectb x-icon, y, card-size, card-size, 13
-    draw-card-visual \t-junction, x-icon, y, card-size, 0
+    draw-road-tile \t-junction, x-icon, y, card-size, 0
     print "x#{counts[\t-junction]}", x-count, y + 3, 15
     y += card-size + 2
 
   if counts[\crossroads]
     rectb x-icon, y, card-size, card-size, 13
-    draw-card-visual \crossroads, x-icon, y, card-size, 0
+    draw-road-tile \crossroads, x-icon, y, card-size, 0
     print "x#{counts[\crossroads]}", x-count, y + 3, 15
     y += card-size + 2
 
@@ -1150,10 +1158,7 @@ draw-hand = ->
 
     # Draw card preview with current rotation
     card-rotation = ingame.hand-rotations[i] or 0
-    draw-card-visual card, card-x, hand-y, 20, card-rotation
-
-    # Number indicator
-    print "#{i + 1}", card-x + 2, hand-y + 2, if is-blocked then 8 else 13
+    draw-road-tile card, card-x, hand-y, 20, card-rotation
 
   # Draw dragged card following mouse (13x13 - slightly bigger than tiles)
   if ingame.drag.active
@@ -1166,7 +1171,7 @@ draw-hand = ->
     rectb drag-x, drag-y, drag-size, drag-size, 15
 
     # Draw card with current rotation
-    draw-card-visual ingame.drag.card-type, drag-x, drag-y, drag-size, ingame.drag.rotation
+    draw-road-tile ingame.drag.card-type, drag-x, drag-y, drag-size, ingame.drag.rotation
 
     # Show placement cost next to cursor (so it's not covered by dragged card)
     hover-cell = screen-to-grid mx, my
@@ -1209,24 +1214,20 @@ draw-goal-options = ->
     if is-selected
       rect x + 1, y + 1, 68, 58, 1
 
-    # Goal info
-    distance = Math.abs(option.end.x - option.start.x) + Math.abs(option.end.y - option.start.y)
-
-    # Difficulty score with color gradient
-    score = option.difficulty-score
+    # Difficulty label with color
+    diff-label = "Easy"
     diff-color = 11  # Green
-    if score >= 20 and score < 40
+    if option.difficulty == \medium
+      diff-label = "Medium"
       diff-color = 10  # Yellow
-    else if score >= 40 and score < 60
-      diff-color = 9   # Orange
-    else if score >= 60
+    else if option.difficulty == \hard
+      diff-label = "Hard"
       diff-color = 8   # Red
 
-    print "Diff: #{score}", x + 5, y + 5, diff-color
-    print "Dist: #{distance}", x + 5, y + 15, 13
-    print "Turns: #{option.base-turns}", x + 5, y + 25, 10
-    print "Rewards:", x + 5, y + 35, 14
-    print "+#{option.rewards.length} cards", x + 5, y + 45, 14
+    print diff-label, x + 5, y + 5, diff-color
+    print "Turns: #{option.base-turns}", x + 5, y + 15, 10
+    print "Rewards:", x + 5, y + 25, 14
+    print "+#{option.rewards.length} cards", x + 5, y + 35, 14
 
   print "Click to select and confirm", 50, 115, 15
 

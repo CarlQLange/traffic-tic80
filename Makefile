@@ -40,6 +40,7 @@ compile:
 	@echo "// version: 0.1" >> $(JS_FILE)
 	@echo "// script:  js" >> $(JS_FILE)
 	@echo "" >> $(JS_FILE)
+	@cat .build/sprites.js >> $(JS_FILE)
 	@cat .build/cards.js >> $(JS_FILE)
 	@cat .build/traffic.js >> $(JS_FILE)
 	@echo "Compiled to $(JS_FILE)"
