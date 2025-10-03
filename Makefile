@@ -1,6 +1,6 @@
-# Auto-detect main .ls file and project name
-MAIN_LS := $(wildcard src/*.ls)
-PROJECT := $(basename $(notdir $(MAIN_LS)))
+# Auto-detect all .ls files and project name
+LS_FILES := $(wildcard src/*.ls)
+PROJECT := traffic
 JS_FILE := $(PROJECT).js
 TIC_FILE := $(PROJECT).tic
 
@@ -21,8 +21,8 @@ help:
 
 # Compile LiveScript to JavaScript
 compile:
-	@if [ ! -f "$(MAIN_LS)" ]; then \
-		echo "Error: $(MAIN_LS) not found"; \
+	@if [ -z "$(LS_FILES)" ]; then \
+		echo "Error: No .ls files found in src/"; \
 		exit 1; \
 	fi
 	@if ! command -v lsc >/dev/null 2>&1; then \
@@ -30,17 +30,18 @@ compile:
 		exit 1; \
 	fi
 	@echo "Compiling LiveScript files..."
-	@lsc --compile --bare --no-header --output . $(MAIN_LS)
-	@echo "// title:   Traffic" > $(JS_FILE).tmp
-	@echo "// author:  Carl Lange" >> $(JS_FILE).tmp
-	@echo "// desc:    A traffic management game" >> $(JS_FILE).tmp
-	@echo "// site:    redfloatplane.lol" >> $(JS_FILE).tmp
-	@echo "// license: MIT" >> $(JS_FILE).tmp
-	@echo "// version: 0.1" >> $(JS_FILE).tmp
-	@echo "// script:  js" >> $(JS_FILE).tmp
-	@echo "" >> $(JS_FILE).tmp
-	@cat $(JS_FILE) >> $(JS_FILE).tmp
-	@mv $(JS_FILE).tmp $(JS_FILE)
+	@lsc --compile --bare --no-header --output .build $(LS_FILES)
+	@mkdir -p .build
+	@echo "// title:   Traffic" > $(JS_FILE)
+	@echo "// author:  Carl Lange" >> $(JS_FILE)
+	@echo "// desc:    Road deck-builder game" >> $(JS_FILE)
+	@echo "// site:    redfloatplane.lol" >> $(JS_FILE)
+	@echo "// license: MIT" >> $(JS_FILE)
+	@echo "// version: 0.1" >> $(JS_FILE)
+	@echo "// script:  js" >> $(JS_FILE)
+	@echo "" >> $(JS_FILE)
+	@cat .build/cards.js >> $(JS_FILE)
+	@cat .build/traffic.js >> $(JS_FILE)
 	@echo "Compiled to $(JS_FILE)"
 
 # Single run
@@ -56,14 +57,14 @@ dev: compile
 		exit 1; \
 	fi
 	@echo "Starting auto-reload development mode..."
-	@echo "Watching $(MAIN_LS) for changes..."
+	@echo "Watching src/*.ls for changes..."
 	@if command -v fswatch > /dev/null; then \
-		fswatch -o $(MAIN_LS) | while read; do \
+		fswatch -o src/ | while read; do \
 			echo "LiveScript files changed, recompiling..."; \
 			make compile && $(TIC80) $(TIC80_FLAGS) --cmd "new js & import code $(JS_FILE) & run"; \
 		done; \
 	elif command -v entr > /dev/null; then \
-		echo $(MAIN_LS) | entr -r sh -c 'make compile && $(TIC80) $(TIC80_FLAGS) --cmd "new js & import code $(JS_FILE) & run"'; \
+		find src -name "*.ls" | entr -r sh -c 'make compile && $(TIC80) $(TIC80_FLAGS) --cmd "new js & import code $(JS_FILE) & run"'; \
 	fi
 
 # Build the .tic cartridge
@@ -81,5 +82,5 @@ clean:
 	@echo "Cleaning generated files..."
 	@rm -f $(JS_FILE) $(TIC_FILE)
 	@rm -f *.html *.wasm *.zip
-	@rm -rf web
+	@rm -rf web .build
 	@echo "Clean complete"

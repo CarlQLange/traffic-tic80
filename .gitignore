@@ -1,6 +1,7 @@
 # Compiled outputs
 *.js
 *.tic
+.build/
 
 # TIC-80 local data
 .local/
